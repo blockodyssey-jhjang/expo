@@ -6,6 +6,50 @@ orbs:
   shallow-checkout: expo/shallow-checkout@1.0.2
 
 commands:
+  setup_direnv:
+    steps:
+      - run: |
+         if which nix; then
+           nix-env -f nix -iA direnv
+         else
+           sudo apt-get install direnv
+         fi
+      - run: mkdir -p ~/.config/direnv
+      - run: echo -e "[whitelist]\nprefix = [ \"$HOME\" ]" > ~/.config/direnv/config.toml
+      - run: echo 'eval "$(direnv export bash)"' >> ~/.bashrc
+  install_yarn:
+    steps:
+      - run: curl -sL https://deb.nodesource.com/setup_10.x | sudo bash -
+      - run: curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
+      - run: echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
+      - run: sudo apt update && sudo apt install yarn
+  install_ruby:
+    parameters:
+      version:
+        type: string
+    steps:
+      - run: curl --silent --location https://github.com/postmodern/ruby-install/archive/v0.7.0.tar.gz --output ruby-install.tar.gz
+      - run: tar -xzvf ruby-install.tar.gz
+      - run: rm ruby-install.tar.gz
+      - restore_cache:
+          key: ruby-v1-{{ arch }}-<< parameters.version >>
+      - run: ruby-install-0.7.0/bin/ruby-install ruby << parameters.version >>
+      - save_cache:
+          key: ruby-v1-{{ arch }}-<< parameters.version >>
+          paths:
+            - ~/.rubies
+      - run: rm -r ruby-install-0.7.0
+  bundle_install:
+    steps:
+      - run: mkdir .direnv
+      - restore_cache:
+          key: gems-v1-{{ checksum "Gemfile.lock" }}
+      - run: gem install bundler -v=2.1.4
+      - run: bundle install
+      - save_cache:
+          key: gems-v1-{{ checksum "Gemfile.lock" }}
+          paths:
+            - .direnv/ruby
   conditionally_halt:
     description: 'Stop the job when there are no active changes in the branch. However, the master branch not affected.'
     parameters:
@@ -150,7 +194,7 @@ commands:
     steps:
       - run: curl https://nixos.org/releases/nix/nix-2.1.2/install | bash -s -- --no-daemon
       - run: echo ". ~/.nix-profile/etc/profile.d/nix.sh" >> ~/.bash_profile
-  setup:
+  nix_install_common_packages:
     steps:
       - run:
           name: Install common packages
@@ -178,12 +222,19 @@ commands:
               nixpkgs.openssh \
               nixpkgs.rsync \
               nixpkgs.xz
-      - run: mkdir -p ~/.config/direnv
-      - run: echo -e "[whitelist]\nprefix = [ \"$HOME\" ]" > ~/.config/direnv/config.toml
-      - run: echo 'eval "$(direnv export bash)"' >> ~/.bash_profile
+  setup:
+    parameters:
+      load_status:
+        type: boolean
+        default: true
+    steps:
+      - setup_direnv
       - run: echo '--frozen-lockfile true' >> ~/.yarnrc
       - shallow-checkout/checkout
-      - job-status-change/prepare
+      - when:
+          condition: << parameters.load_status >>
+          steps:
+            - job-status-change/prepare
   decrypt_secrets_if_possible:
     steps:
       - run:
@@ -244,11 +295,11 @@ commands:
   restore_gradle_cache:
     steps:
       - restore_cache:
-          key: jars-v1-{{ checksum "android/build.gradle" }}-{{ checksum "android/app/build.gradle" }}
+          key: jars-v2-{{ checksum "android/build.gradle" }}-{{ checksum "android/app/build.gradle" }}
   save_gradle_cache:
     steps:
       - save_cache:
-          key: jars-v1-{{ checksum "android/build.gradle" }}-{{ checksum "android/app/build.gradle" }}
+          key: jars-v2-{{ checksum "android/build.gradle" }}-{{ checksum "android/app/build.gradle" }}
           paths:
             - ~/.gradle
   yarn:
@@ -302,7 +353,8 @@ executors:
       FASTLANE_DISABLE_COLORS: 1
       CI: 1
   android:
-    <<: *nix
+    docker:
+      - image: circleci/android:api-28-ndk-r17b
     resource_class: xlarge
   js:
     <<: *nix
@@ -459,6 +511,7 @@ jobs:
   expo_sdk:
     executor: js
     steps:
+      - nix_install_common_packages
       - setup
       - conditionally_halt:
           # Exclude (include anything except) .git/, node_modules,THIRD-PARTY-LICENSES, LICENSE, docs/, guides/, template-files/, templates/, and every `.md` file
@@ -480,6 +533,7 @@ jobs:
     executor: web
     steps:
       - install_nix
+      - nix_install_common_packages
       - setup
       - guard_sdk_tests
       - update_submodules
@@ -498,6 +552,7 @@ jobs:
   home:
     executor: js
     steps:
+      - nix_install_common_packages
       - setup
       - guard_sdk_tests
       - update_submodules
@@ -519,6 +574,7 @@ jobs:
   expotools:
     executor: js
     steps:
+      - nix_install_common_packages
       - setup
       - guard_sdk_tests
       - yarn_restore_and_install:
@@ -533,7 +589,9 @@ jobs:
     steps:
       - nix_mac_volume
       - install_nix
+      - nix_install_common_packages
       - setup
+      - bundle_install
       - guard_sdk_tests
       - update_submodules
 
@@ -589,6 +647,7 @@ jobs:
     steps:
       - nix_mac_volume
       - install_nix
+      - nix_install_common_packages
       - setup
       - guard_sdk_tests
       - update_submodules
@@ -597,6 +656,7 @@ jobs:
       - run:
           name: Generate dynamic macros
           command: expotools ios-generate-dynamic-macros
+      - bundle_install
       - run:
           name: Build
           command: nix run expo.procps --command fastlane ios create_simulator_build
@@ -616,6 +676,7 @@ jobs:
     steps:
       - nix_mac_volume
       - install_nix
+      - nix_install_common_packages
       - setup
       - update_submodules
       - git_lfs_pull
@@ -631,11 +692,13 @@ jobs:
     steps:
       - nix_mac_volume
       - install_nix
+      - nix_install_common_packages
       - setup
       - guard_sdk_tests
       - update_submodules
       - git_lfs_pull
       - fetch_cocoapods_specs
+      - bundle_install
       - run:
           name: Generate dynamic macros
           # Remove GoogleServices-Info because it has been stripped of all our secret keys
@@ -665,6 +728,7 @@ jobs:
     steps:
       - nix_mac_volume
       - install_nix
+      - nix_install_common_packages
       - setup
       - guard_sdk_tests
       - update_submodules
@@ -710,15 +774,20 @@ jobs:
   shell_app_android_build:
     executor: android
     steps:
-      - setup
+      - setup_direnv
+      - run: echo '--frozen-lockfile true' >> ~/.yarnrc
+      - setup:
+          load_status: false
       - run: echo 'export S3_URI=s3://exp-artifacts/android-shell-builder-$CIRCLE_SHA1.tar.gz' >> $BASH_ENV
+      - run: sudo apt-get install git-crypt
       - decrypt_secrets_if_possible
+      - install_yarn
       - yarn_install:
-          working_directory: ~/expo/tools-public
+          working_directory: ~/project/tools-public
       - yarn_install:
-          working_directory: ~/expo/tools
+          working_directory: ~/project/tools
       - yarn_restore_and_install:
-          working_directory: ~/expo/tools/expotools
+          working_directory: ~/project/tools/expotools
       - run:
           name: Check that Android packages are up-to-date
           command: expotools check-android-packages
@@ -760,15 +829,21 @@ jobs:
   client_android:
     executor: android
     steps:
-      - setup
-      - guard_sdk_tests
+      - setup_direnv
+      - run: echo '--frozen-lockfile true' >> ~/.yarnrc
+      - checkout
       - update_submodules
+      - install_yarn
       - yarn_install:
-          working_directory: ~/expo # need jsc-android dependency in expokit-npm-package
+          working_directory: ~/project # need jsc-android dependency in expokit-npm-package
       - yarn_install:
-          working_directory: ~/expo/tools-public
+          working_directory: ~/project/tools-public
       - restore_gradle_cache
+      - run: sudo apt-get install git-crypt
       - decrypt_secrets_if_possible
+      - install_ruby:
+          version: 2.6.3
+      - bundle_install
       - run:
           name: Decode release keystore
           command: echo $ANDROID_KEYSTORE_B64 | base64 -d > android/app/release-key.jks
@@ -787,9 +862,9 @@ jobs:
       - save_cache:
           key: client-android-apk-{{ .Revision }}
           paths:
-            - ~/expo/android/app/build/outputs/apk
+            - ~/project/android/app/build/outputs/apk
       - store_artifacts:
-          path: ~/expo/android/app/build/outputs/apk
+          path: ~/project/android/app/build/outputs/apk
       - store_artifacts: # daemon logs for debugging crashes
           path: ~/.gradle/daemon
       - job-status-change/status
@@ -800,6 +875,7 @@ jobs:
   client_android_apk_release:
     executor: js
     steps:
+      - nix_install_common_packages
       - setup
       - update_submodules
       - decrypt_secrets_if_possible
@@ -810,23 +886,29 @@ jobs:
       - run: expotools client-build --platform android --release
 
   client_android_release_google_play:
-    executor: js
+    executor: android
     steps:
-      - setup
+      - setup_direnv
+      - setup:
+          load_status: false
       - restore_cache:
           key: client-android-apk-{{ .Revision }}
+      - install_ruby:
+          version: 2.6.3
+      - bundle_install
       - run:
           name: Decode release keystore
           command: echo $ANDROID_KEYSTORE_B64 | base64 -d > android/app/release-key.jks
       - run:
           name: Upload APK to Google Play and release to production
-          working_directory: ~/expo
+          working_directory: ~/project
           command: fastlane android prod_release
 
   docs:
     executor: nix
     resource_class: xlarge # TODO: Use less than 8Gib of ram to build a static site
     steps:
+      - nix_install_common_packages
       - setup
       - halt_if_unchanged:
           requireOneOf: 'docs'
@@ -865,6 +947,7 @@ jobs:
   docs_deploy:
     executor: nix
     steps:
+      - nix_install_common_packages
       - setup
       - attach_workspace:
           at: /tmp/workspace
