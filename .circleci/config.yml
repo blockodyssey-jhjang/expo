@@ -41,7 +41,6 @@ commands:
       - run: rm -r ruby-install-0.7.0
   bundle_install:
     steps:
-      - run: mkdir .direnv
       - restore_cache:
           key: gems-v1-{{ checksum "Gemfile.lock" }}
       - run: gem install bundler -v=2.1.4
