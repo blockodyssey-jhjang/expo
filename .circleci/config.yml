@@ -266,6 +266,7 @@ commands:
           command: curl https://cocoapods-specs.circleci.com/fetch-cocoapods-repo-from-s3.sh | bash -s cf
   git_lfs_pull:
     steps:
+      - nix-env -f nix -iA git-lfs
       - restore_cache:
           keys:
             - gitlfs-{{ arch }}

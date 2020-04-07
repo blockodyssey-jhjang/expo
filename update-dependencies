@@ -16,7 +16,6 @@ echo "$newCommit" > ./nix/nixpkgs.json
 # generate binstubs for cli tools
 bin/nix-binstubs \
   cocoapods \
-  git-lfs \
   jq \
   nodePackages.gulp-cli \
   nodejs \
