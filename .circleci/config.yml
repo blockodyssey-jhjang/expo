@@ -10,7 +10,7 @@ commands:
     steps:
       - run: |
          if nix --version; then
-           nix-env -iA nixpkgs.direnv
+           nix-env -f . -iA nixpkgs.direnv
          else
            sudo apt-get install direnv
          fi
@@ -211,7 +211,6 @@ commands:
           command: |
             nix-env -iA \
               nixpkgs.curl \
-              nixpkgs.direnv \
               nixpkgs.findutils \
               nixpkgs.git \
               nixpkgs.gnugrep \
@@ -227,9 +226,9 @@ commands:
         type: boolean
         default: true
     steps:
-      - setup_direnv
       - run: echo '--frozen-lockfile true' >> ~/.yarnrc
       - shallow-checkout/checkout
+      - setup_direnv
       - when:
           condition: << parameters.load_status >>
           steps:
@@ -781,10 +780,9 @@ jobs:
   shell_app_android_build:
     executor: android
     steps:
-      - setup_direnv
-      - run: echo '--frozen-lockfile true' >> ~/.yarnrc
       - setup:
           load_status: false
+      - run: echo '--frozen-lockfile true' >> ~/.yarnrc
       - run: echo 'export S3_URI=s3://exp-artifacts/android-shell-builder-$CIRCLE_SHA1.tar.gz' >> $BASH_ENV
       - decrypt_secrets_if_possible
       - install_yarn
@@ -836,9 +834,9 @@ jobs:
   client_android:
     executor: android
     steps:
+      - checkout
       - setup_direnv
       - run: echo '--frozen-lockfile true' >> ~/.yarnrc
-      - checkout
       - update_submodules
       - install_yarn
       - yarn_install:
@@ -894,7 +892,6 @@ jobs:
   client_android_release_google_play:
     executor: android
     steps:
-      - setup_direnv
       - setup:
           load_status: false
       - restore_cache:
