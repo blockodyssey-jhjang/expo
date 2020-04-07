@@ -10,7 +10,7 @@ commands:
     steps:
       - run: |
          if nix --version; then
-           nix-env -f nix -iA direnv
+           nix-env -iA nixpkgs.direnv
          else
            sudo apt-get install direnv
          fi
