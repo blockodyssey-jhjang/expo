@@ -236,6 +236,12 @@ commands:
             - job-status-change/prepare
   decrypt_secrets_if_possible:
     steps:
+      - run: |
+         if which nix; then
+           nix-env -f nix -iA git-crypt
+         else
+           sudo apt-get install git-crypt
+         fi
       - run:
           name: Decrypt secrets
           command: |
@@ -778,7 +784,6 @@ jobs:
       - setup:
           load_status: false
       - run: echo 'export S3_URI=s3://exp-artifacts/android-shell-builder-$CIRCLE_SHA1.tar.gz' >> $BASH_ENV
-      - run: sudo apt-get install git-crypt
       - decrypt_secrets_if_possible
       - install_yarn
       - yarn_install:
@@ -838,7 +843,6 @@ jobs:
       - yarn_install:
           working_directory: ~/project/tools-public
       - restore_gradle_cache
-      - run: sudo apt-get install git-crypt
       - decrypt_secrets_if_possible
       - install_ruby:
           version: 2.6.3
