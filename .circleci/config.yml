@@ -15,7 +15,7 @@ commands:
            sudo apt-get install direnv
          fi
       - run: mkdir -p ~/.config/direnv
-      - run: echo -e "[whitelist]\nprefix = [ \"$HOME\" ]" > ~/.config/direnv/config.toml
+      - run: echo -e "[whitelist]\nprefix = [ \"$CIRCLE_WORKING_DIRECTORY\" ]" > ~/.config/direnv/config.toml
       - run: echo 'eval "$(direnv export bash)"' >> $BASH_ENV
   install_yarn:
     steps:
