@@ -42,11 +42,11 @@ commands:
   bundle_install:
     steps:
       - restore_cache:
-          key: gems-v1-{{ checksum "Gemfile.lock" }}
+          key: gems-v1-{{ arch }}-{{ checksum "Gemfile.lock" }}
       - run: gem install bundler -v=2.1.4
       - run: bundle install
       - save_cache:
-          key: gems-v1-{{ checksum "Gemfile.lock" }}
+          key: gems-v1-{{ arch }}-{{ checksum "Gemfile.lock" }}
           paths:
             - .direnv/ruby
   conditionally_halt:
