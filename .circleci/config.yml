@@ -709,6 +709,7 @@ jobs:
           # Remove GoogleServices-Info because it has been stripped of all our secret keys
           # Will be generated later in the build process if the user provides their own ios.googleServicesFile
           command: expotools ios-generate-dynamic-macros --skip-template=GoogleService-Info.plist
+      - run: nix-env -f nix -iA awscli
       - run:
           name: Build Expo Client and upload tarball
           command: |
@@ -758,6 +759,7 @@ jobs:
       - when:
           condition: << parameters.upload >>
           steps:
+            - run: nix-env -f nix -iA awscli
             - run:
                 name: Package and upload release tarball
                 working_directory: ~/project
@@ -795,6 +797,7 @@ jobs:
       - run:
           name: Check that Android packages are up-to-date
           command: expotools check-android-packages
+      - run: sudo apt-get install awscli
       - run: |
           aws s3 ls $S3_URI || {
             ./buildAndroidTarballLocally.sh # TODO: put in fastlane?
