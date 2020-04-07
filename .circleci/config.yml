@@ -33,7 +33,7 @@ commands:
       - run: rm ruby-install.tar.gz
       - restore_cache:
           key: ruby-v1-{{ arch }}-<< parameters.version >>
-      - run: ruby-install-0.7.0/bin/ruby-install ruby << parameters.version >>
+      - run: ruby-install-0.7.0/bin/ruby-install --no-reinstall ruby << parameters.version >>
       - save_cache:
           key: ruby-v1-{{ arch }}-<< parameters.version >>
           paths:
