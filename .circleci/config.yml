@@ -9,7 +9,7 @@ commands:
   setup_direnv:
     steps:
       - run: |
-         if which nix; then
+         if nix --version; then
            nix-env -f nix -iA direnv
          else
            sudo apt-get install direnv
@@ -237,7 +237,7 @@ commands:
   decrypt_secrets_if_possible:
     steps:
       - run: |
-         if which nix; then
+         if nix --version; then
            nix-env -f nix -iA git-crypt
          else
            sudo apt-get install git-crypt
